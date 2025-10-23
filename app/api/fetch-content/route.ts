@@ -44,8 +44,13 @@ export async function POST(request: NextRequest) {
     const document = dom.window.document;
 
     // Remove script, style, and other non-content elements
-    const elementsToRemove = document.querySelectorAll('script, style, noscript, iframe, nav, footer, header');
-    elementsToRemove.forEach(el => el.remove());
+    const elementsToRemove = document.querySelectorAll(
+      'script, style, noscript, iframe, nav, footer, header, button, ' +
+      '.ad, .advertisement, aside, [role="banner"], [role="navigation"], ' +
+      '[role="complementary"], .sidebar, .menu, .comments, form, ' +
+      '.social-share, .newsletter, .subscribe'
+    );
+    elementsToRemove.forEach((el: Element) => el.remove());
 
     // Try to find main content area
     let contentElement = 
@@ -57,13 +62,67 @@ export async function POST(request: NextRequest) {
       document.querySelector('.article') ||
       document.body;
 
-    // Extract text content
-    let text = contentElement?.textContent || '';
+    // Helper function to extract text with proper spacing
+    const extractTextWithSpacing = (element: Element): string => {
+      let result = '';
+      
+      for (const node of Array.from(element.childNodes)) {
+        if (node.nodeType === 3) { // Text node
+          const text = node.textContent?.trim();
+          if (text) {
+            result += text + ' ';
+          }
+        } else if (node.nodeType === 1) { // Element node
+          const el = node as Element;
+          const tagName = el.tagName.toLowerCase();
+          
+          // Skip unwanted elements
+          if (['script', 'style', 'nav', 'footer', 'header', 'button', 'iframe'].includes(tagName)) {
+            continue;
+          }
+          
+          // Block elements should have line breaks
+          const blockElements = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'pre', 'section', 'article'];
+          
+          // Inline elements that should have spacing
+          const inlineSpacingElements = ['span', 'a', 'strong', 'em', 'b', 'i', 'code'];
+          
+          if (blockElements.includes(tagName)) {
+            const innerText = extractTextWithSpacing(el);
+            if (innerText.trim()) {
+              result += '\n\n' + innerText.trim() + '\n\n';
+            }
+          } else if (tagName === 'br') {
+            result += '\n';
+          } else if (inlineSpacingElements.includes(tagName)) {
+            const innerText = extractTextWithSpacing(el);
+            if (innerText.trim()) {
+              result += innerText.trim() + ' ';
+            }
+          } else {
+            result += extractTextWithSpacing(el);
+          }
+        }
+      }
+      
+      return result;
+    };
+
+    // Extract text content with proper spacing
+    let text = contentElement ? extractTextWithSpacing(contentElement) : '';
     
     // Clean up the text
     text = text
-      .replace(/\s+/g, ' ') // Replace multiple spaces/newlines with single space
-      .replace(/\n\s*\n/g, '\n\n') // Preserve paragraph breaks
+      .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+      .replace(/[ \t]+/g, ' ') // Normalize spaces
+      .replace(/\n /g, '\n') // Remove spaces after newlines
+      .replace(/ \n/g, '\n') // Remove spaces before newlines
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase words (e.g., "PerspectiveBy" -> "Perspective By")
+      .replace(/(\d+)(min|hours?|days?|ago)/gi, '$1 $2') // Add space between numbers and time units
+      .replace(/\b(Listen|Share|Follow|Subscribe)\b/gi, '') // Remove common UI text
+      .replace(/^(--+|\.\.\.|…)+$/gm, '') // Remove lines with just dashes or ellipsis
+      .replace(/Press enter or click to view image in full size/gi, '') // Remove image captions
+      .replace(/\n{3,}/g, '\n\n') // Clean up again after removals
       .trim();
 
     // Get title

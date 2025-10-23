@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { encryptAndStoreApiKey, retrieveAndDecryptApiKey, removeStoredApiKey, hasStoredApiKey } from '@/lib/crypto';
 import { extractUrlIfOnly } from '@/lib/url-utils';
+import { chunkText, concatenateAudioBlobs } from '@/lib/text-chunker';
 
 const OPENAI_VOICES = [
   { id: 'alloy', name: 'Alloy' },
@@ -24,7 +25,10 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pageTitle, setPageTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioQueueRef = useRef<string[]>([]);
+  const currentChunkIndexRef = useRef(0);
 
   // Check for saved API key on mount
   useEffect(() => {
@@ -101,41 +105,193 @@ export default function Home() {
     }
 
     setIsGenerating(true);
+    setGenerationProgress({ current: 0, total: 0 });
     
     try {
-      // Call OpenAI API directly from the browser
-      const response = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'tts-1-hd',
-          voice: selectedVoice,
-          input: text.trim(),
-        }),
-      });
+      // Split text into chunks if it's too long
+      const chunks = chunkText(text.trim());
+      setGenerationProgress({ current: 0, total: chunks.length });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to generate speech');
-      }
+      if (chunks.length === 1) {
+        // Single chunk - simple case
+        const response = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'tts-1-hd',
+            voice: selectedVoice,
+            input: chunks[0],
+          }),
+        });
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      // Clean up old audio URL
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'Failed to generate speech');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        
+        // Clean up old audio URL
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+        }
+        
+        setAudioUrl(url);
+      } else {
+        // Multiple chunks - stream generation and playback
+        const audioBlobs: Blob[] = [];
+        const audioUrls: string[] = [];
+        
+        // Reset queue state
+        audioQueueRef.current = [];
+        currentChunkIndexRef.current = 0;
+
+        // Generate first chunk and start playing immediately
+        setGenerationProgress({ current: 1, total: chunks.length });
+
+        const firstResponse = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'tts-1-hd',
+            voice: selectedVoice,
+            input: chunks[0],
+          }),
+        });
+
+        if (!firstResponse.ok) {
+          const error = await firstResponse.json();
+          throw new Error(error.error?.message || 'Failed to generate speech for chunk 1');
+        }
+
+        const firstBlob = await firstResponse.blob();
+        audioBlobs.push(firstBlob);
+        
+        // Start playing the first chunk immediately
+        const firstUrl = URL.createObjectURL(firstBlob);
+        audioUrls.push(firstUrl);
+        audioQueueRef.current.push(firstUrl);
+        
+        // Clean up old audio URL
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+        }
+        
+        setAudioUrl(firstUrl);
+
+        // Setup audio ended handler to play next chunk in queue
+        const playNextChunk = () => {
+          currentChunkIndexRef.current += 1;
+          if (currentChunkIndexRef.current < audioQueueRef.current.length) {
+            const nextUrl = audioQueueRef.current[currentChunkIndexRef.current];
+            setAudioUrl(nextUrl);
+            // Small delay to ensure state updates
+            setTimeout(() => {
+              if (audioRef.current) {
+                audioRef.current.load();
+                audioRef.current.play().catch(e => console.log('Play error:', e));
+              }
+            }, 100);
+          }
+        };
+
+        // Wait for audio element to be ready, then set up listener and play
+        setTimeout(() => {
+          if (audioRef.current) {
+            // Remove any existing listeners first
+            audioRef.current.removeEventListener('ended', playNextChunk);
+            // Add event listener for when current chunk ends
+            audioRef.current.addEventListener('ended', playNextChunk);
+            
+            // Load and play the first chunk
+            audioRef.current.load();
+            audioRef.current.play().catch(e => {
+              console.log('Auto-play prevented:', e);
+              // Show alert to user if autoplay fails
+              alert('Please click play on the audio player to start listening while the rest generates.');
+            });
+          }
+        }, 200);
+
+        // Generate remaining chunks in the background
+        const generateRemainingChunks = async () => {
+          for (let i = 1; i < chunks.length; i++) {
+            // Small delay between chunks to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            setGenerationProgress({ current: i + 1, total: chunks.length });
+
+            const response = await fetch('https://api.openai.com/v1/audio/speech', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'tts-1-hd',
+                voice: selectedVoice,
+                input: chunks[i],
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error?.message || `Failed to generate speech for chunk ${i + 1}`);
+            }
+
+            const blob = await response.blob();
+            audioBlobs.push(blob);
+            const chunkUrl = URL.createObjectURL(blob);
+            audioUrls.push(chunkUrl);
+            audioQueueRef.current.push(chunkUrl);
+          }
+
+          // Once all chunks are generated, concatenate them
+          const concatenatedBlob = await concatenateAudioBlobs(audioBlobs);
+          const finalUrl = URL.createObjectURL(concatenatedBlob);
+          
+          // Wait for current playback to finish before replacing with final audio
+          const waitForPlaybackEnd = () => {
+            if (audioRef.current) {
+              const checkEnded = () => {
+                if (currentChunkIndexRef.current >= audioQueueRef.current.length - 1) {
+                  // All chunks played, now show final concatenated audio
+                  audioUrls.forEach(url => URL.revokeObjectURL(url));
+                  audioQueueRef.current = [];
+                  setAudioUrl(finalUrl);
+                  if (audioRef.current) {
+                    audioRef.current.removeEventListener('ended', playNextChunk);
+                  }
+                } else {
+                  // Still playing, check again soon
+                  setTimeout(checkEnded, 1000);
+                }
+              };
+              checkEnded();
+            }
+          };
+          waitForPlaybackEnd();
+        };
+
+        // Start generating remaining chunks (don't await - run in background)
+        generateRemainingChunks().catch(error => {
+          console.error('Error generating remaining chunks:', error);
+          alert(error instanceof Error ? error.message : 'Failed to generate some audio chunks');
+        });
       }
-      
-      setAudioUrl(url);
     } catch (error) {
       console.error('Error generating speech:', error);
       alert(error instanceof Error ? error.message : 'Failed to generate speech. Please check your API key and try again.');
     } finally {
       setIsGenerating(false);
+      setGenerationProgress({ current: 0, total: 0 });
     }
   };
 
@@ -324,7 +480,11 @@ export default function Home() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Generating...
+                    {generationProgress.total > 1 ? (
+                      <>Generating... ({generationProgress.current}/{generationProgress.total})</>
+                    ) : (
+                      <>Generating...</>
+                    )}
                   </>
                 ) : (
                   <>

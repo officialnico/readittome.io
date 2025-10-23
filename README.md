@@ -12,10 +12,13 @@ A modern web application that converts text to speech using OpenAI's advanced te
 - 🔐 **Encrypted Storage** - API key encrypted with Web Crypto API and stored locally
 - 🌐 **URL Reading** - Paste any webpage URL to automatically fetch and read its content
 - 🔗 **Smart URL Routing** - Access `readittome.ai/example.com/article` to read that page directly
-- 📝 **Any Size Text** - Convert any length of text to natural-sounding speech
+- 📝 **Unlimited Length** - Automatically chunks long texts (handles articles of any size)
+- 🎵 **Streaming Playback** - Start listening in 2-3 seconds, even for huge articles
+- 🔄 **Smart Chunking** - Splits at sentence boundaries and concatenates audio seamlessly
 - 🎨 **Modern Dark UI** - ChatGPT-inspired interface with smooth animations
 - 💾 **Download Audio** - Save generated speech as MP3 files
 - ⚡ **Intelligent Extraction** - Automatically extracts main content from webpages
+- 📊 **Progress Tracking** - Shows real-time progress for long text generation
 
 ## Prerequisites
 
@@ -68,6 +71,34 @@ Simply prepend `readittome.ai/` to any URL:
 - Read It: `readittome.ai/blog.oceanprotocol.com/the-asi-alliance-f7848b2ad61f`
 
 The content will be automatically extracted and ready to convert to speech!
+
+### Long Text Handling
+
+**Streaming Playback (NEW!):**
+- 🎵 **Instant playback** - First chunk starts playing immediately
+- 🔄 **Background generation** - Remaining chunks generate while you listen
+- ⚡ **No waiting** - Start listening in ~2-3 seconds, even for huge articles
+- 📊 **Progress tracking** - See "Generating... (2/5)" for remaining chunks
+- 🎧 **Seamless experience** - Final audio concatenates automatically for replay
+
+**How It Works:**
+1. Paste a 15,000 character article
+2. First chunk (4,000 chars) generates in 2-3 seconds
+3. **Audio starts playing automatically** 🎵
+4. Chunks 2-4 generate in the background while you listen
+5. Progress shows "Generating... (2/4)", "Generating... (3/4)", etc.
+6. Once complete, the full audio is available for replay/download
+
+**Example Timeline:**
+```
+0:00 - Click "Generate Speech"
+0:03 - First chunk ready → Starts playing automatically!
+0:05 - You're listening to chunk 1, chunk 2 is being generated
+0:10 - Chunk 3 being generated (you're still listening)
+0:15 - All chunks complete → Full audio available
+```
+
+No more waiting for the entire article to generate before listening! 🚀
 
 ## Available Voices
 
