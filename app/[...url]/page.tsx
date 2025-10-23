@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { encryptAndStoreApiKey, retrieveAndDecryptApiKey, removeStoredApiKey, hasStoredApiKey } from '@/lib/crypto';
 import { reconstructUrlFromPath } from '@/lib/url-utils';
 import { chunkText, concatenateAudioBlobs } from '@/lib/text-chunker';
+import { saveAudioCollection, blobToBase64, getAudioCollections } from '@/lib/audio-storage';
 import { useParams, useRouter } from 'next/navigation';
 
 const OPENAI_VOICES = [
@@ -26,9 +27,12 @@ export default function UrlPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [pageTitle, setPageTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
+  const [collectionsCount, setCollectionsCount] = useState(0);
+  const [showSaveNotification, setShowSaveNotification] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioQueueRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
@@ -45,7 +49,13 @@ export default function UrlPage() {
       }
     }
     loadApiKey();
+    updateCollectionsCount();
   }, []);
+
+  const updateCollectionsCount = () => {
+    const collections = getAudioCollections();
+    setCollectionsCount(collections.length);
+  };
 
   // Fetch content from URL in path
   useEffect(() => {
@@ -147,6 +157,10 @@ export default function UrlPage() {
         }
         
         setAudioUrl(url);
+        setAudioBlob(blob);
+        
+        // Auto-save to collections
+        await saveToCollection(blob);
       } else {
         // Multiple chunks - stream generation and playback
         const audioBlobs: Blob[] = [];
@@ -262,6 +276,10 @@ export default function UrlPage() {
           const concatenatedBlob = await concatenateAudioBlobs(audioBlobs);
           const finalUrl = URL.createObjectURL(concatenatedBlob);
           
+          // Save concatenated audio to collections
+          setAudioBlob(concatenatedBlob);
+          await saveToCollection(concatenatedBlob);
+          
           // Wait for current playback to finish before replacing with final audio
           const waitForPlaybackEnd = () => {
             if (audioRef.current) {
@@ -300,6 +318,29 @@ export default function UrlPage() {
     }
   };
 
+  const saveToCollection = async (blob: Blob) => {
+    try {
+      const base64Data = await blobToBase64(blob);
+      saveAudioCollection({
+        title: pageTitle || (text.length > 50 ? text.substring(0, 50) + '...' : text),
+        sourceUrl: sourceUrl || undefined,
+        text: text,
+        voice: selectedVoice,
+        audioData: base64Data,
+      });
+      updateCollectionsCount();
+      
+      // Show notification
+      setShowSaveNotification(true);
+      setTimeout(() => setShowSaveNotification(false), 3000);
+    } catch (error) {
+      console.error('Error saving to collection:', error);
+      if (error instanceof Error) {
+        alert(error.message);
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (audioUrl) {
@@ -317,7 +358,23 @@ export default function UrlPage() {
             Read It To Me
           </h1>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {collectionsCount > 0 && (
+              <button
+                onClick={() => router.push('/collections')}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                </svg>
+                My Collections
+                {collectionsCount > 0 && (
+                  <span className="bg-purple-800 text-white text-xs rounded-full px-2 py-0.5">
+                    {collectionsCount}
+                  </span>
+                )}
+              </button>
+            )}
             {!isAuthenticated ? (
               <button
                 onClick={() => setShowApiKeyInput(!showApiKeyInput)}
@@ -521,6 +578,16 @@ export default function UrlPage() {
           )}
         </div>
       </main>
+
+      {/* Save Notification */}
+      {showSaveNotification && (
+        <div className="fixed top-20 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-in-right">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          Saved to Collections!
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 right-0 bg-[#0f0f0f] border-t border-gray-800 py-3">
