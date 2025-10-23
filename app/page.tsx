@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { encryptAndStoreApiKey, retrieveAndDecryptApiKey, removeStoredApiKey, hasStoredApiKey } from '@/lib/crypto';
 import { extractUrlIfOnly } from '@/lib/url-utils';
 import { chunkText, concatenateAudioBlobs } from '@/lib/text-chunker';
@@ -16,30 +17,44 @@ const OPENAI_VOICES = [
   { id: 'shimmer', name: 'Shimmer' },
 ];
 
-// Book Logo Component
-const BookLogo = ({ className = "w-6 h-6" }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: '#6366f1', stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: '#a855f7', stopOpacity: 1 }} />
-      </linearGradient>
-    </defs>
-    <path
-      d="M4 19.5C4 18.119 5.119 17 6.5 17H20"
-      stroke="url(#bookGradient)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+// Logo Component (no text) that switches between light and dark mode
+const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <>
+    <Image 
+      src="/light_mode_no_text.svg" 
+      alt="readittome.io" 
+      width={24} 
+      height={24} 
+      className={`${className} dark:hidden`}
     />
-    <path
-      d="M6.5 2H20V22H6.5C5.119 22 4 20.881 4 19.5V4.5C4 3.119 5.119 2 6.5 2Z"
-      stroke="url(#bookGradient)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <Image 
+      src="/dark_mode_no_text.svg" 
+      alt="readittome.io" 
+      width={24} 
+      height={24} 
+      className={`${className} hidden dark:block`}
     />
-  </svg>
+  </>
+);
+
+// Full Logo Component with text
+const LogoFull = ({ className = "" }: { className?: string }) => (
+  <>
+    <Image 
+      src="/logo_light.svg" 
+      alt="readittome.io" 
+      width={300} 
+      height={80} 
+      className={`${className} dark:hidden`}
+    />
+    <Image 
+      src="/logo_dark.svg" 
+      alt="readittome.io" 
+      width={300} 
+      height={80} 
+      className={`${className} hidden dark:block`}
+    />
+  </>
 );
 
 export default function Home() {
@@ -386,7 +401,7 @@ export default function Home() {
       <header className="fixed top-0 left-0 right-0 z-10 bg-white dark:bg-[#2f2f2f] border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookLogo className="w-5 h-5" />
+            <LogoIcon className="w-6 h-6" />
             <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">readittome.io</h1>
           </div>
           
@@ -480,25 +495,32 @@ export default function Home() {
       {/* Main Content */}
       <main className="pt-14 pb-16 min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-3xl">
-          {!isAuthenticated && (
-            <div className="text-center py-12 mb-8">
-              <div className="mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-                  <BookLogo className="w-8 h-8 [&_path]:stroke-white" />
-                </div>
-              </div>
-              <h2 className="text-3xl font-bold mb-3 text-gray-900 dark:text-gray-100">Welcome to readittome.io</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                Convert any text to natural-sounding speech using OpenAI's advanced text-to-speech models.
-              </p>
-              <button
-                onClick={() => setShowApiKeyInput(true)}
-                className="px-6 py-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium"
-              >
-                Get Started
-              </button>
+          {/* Welcome Section - Always Visible */}
+          <div className="text-center py-8 mb-6">
+            <div className="mb-4">
+              <LogoFull className="mx-auto w-auto h-32 sm:h-40" />
             </div>
-          )}
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 max-w-lg mx-auto">
+              Convert any text or URL to natural-sounding speech
+            </p>
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                No Account Needed
+              </span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1">
+                <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                100% Free
+              </span>
+              <span>•</span>
+              <span>Just bring your OpenAI API key</span>
+            </div>
+          </div>
           {isFetchingContent ? (
             <div className="text-center py-12">
               <div className="animate-spin w-12 h-12 border-4 border-gray-300 dark:border-gray-600 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-4"></div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   getAudioCollections,
   deleteAudioCollection,
@@ -12,30 +13,24 @@ import {
   type AudioCollection,
 } from '@/lib/audio-storage';
 
-// Book Logo Component
-const BookLogo = ({ className = "w-6 h-6" }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: '#6366f1', stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: '#a855f7', stopOpacity: 1 }} />
-      </linearGradient>
-    </defs>
-    <path
-      d="M4 19.5C4 18.119 5.119 17 6.5 17H20"
-      stroke="url(#bookGradient)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+// Logo Component (no text) that switches between light and dark mode
+const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <>
+    <Image 
+      src="/light_mode_no_text.svg" 
+      alt="readittome.io" 
+      width={24} 
+      height={24} 
+      className={`${className} dark:hidden`}
     />
-    <path
-      d="M6.5 2H20V22H6.5C5.119 22 4 20.881 4 19.5V4.5C4 3.119 5.119 2 6.5 2Z"
-      stroke="url(#bookGradient)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <Image 
+      src="/dark_mode_no_text.svg" 
+      alt="readittome.io" 
+      width={24} 
+      height={24} 
+      className={`${className} hidden dark:block`}
     />
-  </svg>
+  </>
 );
 
 export default function CollectionsPage() {
@@ -169,7 +164,7 @@ export default function CollectionsPage() {
               onClick={() => router.push('/')}
               className="flex items-center gap-2 text-lg font-semibold hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
             >
-              <BookLogo className="w-5 h-5" />
+              <LogoIcon className="w-6 h-6" />
               readittome.io
             </button>
             <span className="text-gray-400 dark:text-gray-600">/</span>
