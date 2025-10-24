@@ -74,6 +74,11 @@ export default function Home() {
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [collectionsCount, setCollectionsCount] = useState(0);
   const [showSaveNotification, setShowSaveNotification] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [usageInfo, setUsageInfo] = useState<{ used: number; limit: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioQueueRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
@@ -86,6 +91,8 @@ export default function Home() {
         if (decryptedKey) {
           setApiKey(decryptedKey);
           setIsAuthenticated(true);
+          // Fetch usage info
+          fetchUsageInfo(decryptedKey);
         }
       }
     }
@@ -98,11 +105,49 @@ export default function Home() {
     setCollectionsCount(collections.length);
   };
 
+  const fetchUsageInfo = async (key: string) => {
+    try {
+      // Get first and last day of current month for usage query
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      const response = await fetch(`https://api.openai.com/v1/usage?start_date=${startDate}&end_date=${endDate}`, {
+        headers: {
+          'Authorization': `Bearer ${key}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Calculate total usage from daily data
+        let totalUsed = 0;
+        if (data.data && Array.isArray(data.data)) {
+          totalUsed = data.data.reduce((sum: number, day: any) => {
+            return sum + (day.n_context_tokens_total || 0) * 0.000001; // Convert to approximate USD
+          }, 0);
+        }
+        
+        // Get rate limit info from headers or set reasonable defaults
+        setUsageInfo({
+          used: totalUsed,
+          limit: 120, // Most accounts have $120/month limit, but this varies
+        });
+      }
+    } catch (error) {
+      console.log('Could not fetch usage info:', error);
+      // Don't show error to user - this is optional info
+    }
+  };
+
   const handleSaveApiKey = async () => {
     if (apiKey.trim()) {
       await encryptAndStoreApiKey(apiKey.trim());
       setIsAuthenticated(true);
       setShowApiKeyInput(false);
+      
+      // Fetch usage info
+      fetchUsageInfo(apiKey.trim());
       
       // Track API key added
       track('api_key_added');
@@ -145,7 +190,8 @@ export default function Home() {
       return true;
     } catch (error) {
       console.error('Error fetching URL content:', error);
-      alert(error instanceof Error ? error.message : 'Failed to fetch content from URL');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to fetch content from URL';
+      setErrorMessage(errorMsg);
       
       // Track failed URL fetch
       track('url_fetch_failed', {
@@ -158,15 +204,137 @@ export default function Home() {
     }
   };
 
+  const processFile = async (file: File) => {
+    setIsProcessingFile(true);
+    setSourceUrl('');
+    setPageTitle('');
+
+    try {
+      const fileType = file.type;
+      const fileName = file.name.toLowerCase();
+      let extractedText = '';
+      let title = file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
+
+      // Handle text files
+      if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+        const text = await file.text();
+        extractedText = text;
+      }
+      // Handle PDF files - Use server-side PDF processing
+      else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/process-file', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to extract text from PDF');
+          }
+
+          const data = await response.json();
+          extractedText = data.text;
+          title = data.title || title;
+
+          if (!extractedText || extractedText.length < 10) {
+            throw new Error('Could not extract meaningful text from PDF');
+          }
+        } catch (pdfError: any) {
+          throw new Error(`Failed to parse PDF: ${pdfError.message}`);
+        }
+      }
+      else {
+        throw new Error('Unsupported file type. Please upload a PDF or text file.');
+      }
+
+      // Clean up the text
+      extractedText = extractedText
+        .replace(/\r\n/g, '\n') // Normalize line endings
+        .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+        .replace(/[ \t]+/g, ' ') // Normalize spaces
+        .replace(/\n /g, '\n') // Remove spaces after newlines
+        .replace(/ \n/g, '\n') // Remove spaces before newlines
+        .trim();
+
+      if (!extractedText || extractedText.length < 10) {
+        throw new Error('Could not extract meaningful content from the file');
+      }
+
+      setText(extractedText);
+      setPageTitle(title);
+      
+      // Track successful file processing
+      track('file_processed', {
+        file_type: file.type,
+        file_size: file.size,
+        text_length: extractedText.length,
+        processing: fileType === 'application/pdf' ? 'server_side_pdf' : 'client_side'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error processing file:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to process file';
+      setErrorMessage(errorMsg);
+      
+      // Track failed file processing
+      track('file_processing_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        file_type: file.type
+      });
+      
+      return false;
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const fileName = file.name.toLowerCase();
+      if (fileName.endsWith('.pdf') || fileName.endsWith('.txt') || file.type === 'text/plain') {
+        setErrorMessage(null); // Clear any previous errors
+        await processFile(file);
+      } else {
+        setErrorMessage('Please drop a PDF or text file');
+      }
+    }
+  };
+
   const handleGenerateSpeech = async () => {
     if (!text.trim()) {
-      alert('Please enter some text to convert to speech');
+      setErrorMessage('Please enter some text to convert to speech');
       return;
     }
 
     // Check authentication first
     if (!isAuthenticated) {
-      alert('Please connect your OpenAI API key to generate speech');
+      setErrorMessage('Please connect your OpenAI API key to generate speech');
       setShowApiKeyInput(true);
       return;
     }
@@ -302,8 +470,8 @@ export default function Home() {
             audioRef.current.load();
             audioRef.current.play().catch(e => {
               console.log('Auto-play prevented:', e);
-              // Show alert to user if autoplay fails
-              alert('Please click play on the audio player to start listening while the rest generates.');
+              // Show notification to user if autoplay fails
+              setErrorMessage('Please click play on the audio player to start listening while the rest generates.');
             });
           }
         }, 200);
@@ -383,12 +551,14 @@ export default function Home() {
         // Start generating remaining chunks (don't await - run in background)
         generateRemainingChunks().catch(error => {
           console.error('Error generating remaining chunks:', error);
-          alert(error instanceof Error ? error.message : 'Failed to generate some audio chunks');
+          const errorMsg = error instanceof Error ? error.message : 'Failed to generate some audio chunks';
+          setErrorMessage(errorMsg);
         });
       }
     } catch (error) {
       console.error('Error generating speech:', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate speech. Please check your API key and try again.');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to generate speech. Please check your API key and try again.';
+      setErrorMessage(errorMsg);
       
       // Track generation failure
       track('audio_generation_failed', {
@@ -421,7 +591,7 @@ export default function Home() {
     } catch (error) {
       console.error('Error saving to collection:', error);
       if (error instanceof Error) {
-        alert(error.message);
+        setErrorMessage(error.message);
       }
     }
   };
@@ -436,7 +606,25 @@ export default function Home() {
   }, [audioUrl]);
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#212121] text-gray-900 dark:text-gray-100">
+    <div 
+      className="min-h-screen bg-[#f8f9fa] dark:bg-[#212121] text-gray-900 dark:text-gray-100"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Full-page drop overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-[#2a2a2a] border-4 border-dashed border-blue-500 dark:border-blue-400 rounded-2xl p-12 shadow-2xl">
+            <svg className="w-24 h-24 mx-auto mb-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">Drop your file anywhere</p>
+            <p className="text-lg text-blue-500 dark:text-blue-300">PDF or text file supported</p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-10 bg-white dark:bg-[#2f2f2f] border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -474,12 +662,20 @@ export default function Home() {
                 Connect OpenAI
               </button>
             ) : (
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm"
-              >
-                Disconnect
-              </button>
+              <div className="flex items-center gap-3">
+                {usageInfo && (
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">${usageInfo.used.toFixed(2)}</span>
+                    <span className="text-gray-500 dark:text-gray-500"> / ${usageInfo.limit}</span>
+                  </div>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm"
+                >
+                  Disconnect
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -526,7 +722,7 @@ export default function Home() {
                     <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   <div className="text-xs text-green-700 dark:text-green-300">
-                    <strong className="font-semibold">100% Client-Side & Encrypted:</strong> Your API key is encrypted and stored only in your browser. All requests go directly from your browser to OpenAI—no servers in between!
+                    <strong className="font-semibold">Private & Secure:</strong> Your API key is encrypted and stored only in your browser. All requests go directly to OpenAI. We never store your text, files, or audio.
                   </div>
                 </div>
               </div>
@@ -544,7 +740,7 @@ export default function Home() {
               <LogoFull className="mx-auto w-auto h-32 sm:h-40" />
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 max-w-lg mx-auto">
-              Convert any text or URL to natural-sounding speech
+              Convert any text, URL, PDF, or document to natural-sounding speech
             </p>
             <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-500">
               <span className="inline-flex items-center gap-1">
@@ -558,16 +754,18 @@ export default function Home() {
                 <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                100% Free
+                No Platform Costs
               </span>
               <span>•</span>
               <span>Just bring your OpenAI API key</span>
             </div>
           </div>
-          {isFetchingContent ? (
+          {isFetchingContent || isProcessingFile ? (
             <div className="text-center py-12">
               <div className="animate-spin w-12 h-12 border-4 border-gray-300 dark:border-gray-600 border-t-gray-900 dark:border-t-gray-100 rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Fetching webpage content...</p>
+              <p className="text-gray-600 dark:text-gray-400">
+                {isFetchingContent ? 'Fetching webpage content...' : 'Processing file...'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -609,32 +807,82 @@ export default function Home() {
                 </select>
               </div>
 
+              {/* Error Notification */}
+              {errorMessage && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                  <span className="text-2xl">😞</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Oops! Something went wrong</p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mb-3">{errorMessage}</p>
+                    {(errorMessage.includes('quota') || errorMessage.includes('exceeded')) && (
+                      <a
+                        href="https://platform.openai.com/usage"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Check Usage & Add Credits
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setErrorMessage(null)}
+                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
               {/* Text Input */}
               <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,text/plain,application/pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Paste a URL or any text here to convert to speech..."
+                  placeholder="Paste a URL or text here, or drag & drop a PDF or text file anywhere on the page..."
                   className="w-full h-64 px-4 py-3 bg-white dark:bg-[#3a3a3a] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 />
-                <div className="absolute bottom-3 right-3 text-xs text-gray-500 dark:text-gray-400">
-                  {text.length} characters
+                <div className="absolute bottom-3 right-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+                    type="button"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Upload file
+                  </button>
+                  <span>•</span>
+                  <span>{text.length} characters</span>
                 </div>
               </div>
 
               {/* Generate Button */}
               <button
                 onClick={handleGenerateSpeech}
-                disabled={isGenerating || isFetchingContent || !text.trim()}
+                disabled={isGenerating || isFetchingContent || isProcessingFile || !text.trim()}
                 className="w-full px-6 py-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isFetchingContent ? (
+                {isFetchingContent || isProcessingFile ? (
                   <>
                     <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Fetching Content...
+                    {isFetchingContent ? 'Fetching Content...' : 'Processing File...'}
                   </>
                 ) : isGenerating ? (
                   <>
@@ -731,8 +979,8 @@ export default function Home() {
               <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              <span className="hidden sm:inline">API Key Encrypted In Your Browser • 100% Client-Side • Direct to OpenAI</span>
-              <span className="sm:hidden">100% Client-Side & Private</span>
+              <span className="hidden sm:inline">API Key Encrypted In Your Browser • All Processing Direct to OpenAI • We Don't Store Your Data</span>
+              <span className="sm:hidden">Your Data Is Never Stored</span>
             </div>
             <div className="flex items-center gap-4">
               <a 
