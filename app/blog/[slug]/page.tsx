@@ -122,11 +122,12 @@ const blogPosts: Record<string, {
           because we don't have it.
         </p>
 
-        <h4>Client-Side Everything</h4>
+        <h4>Privacy-First Data Handling</h4>
         <p>
-          Your API key is encrypted and stored in YOUR browser. Your saved audio lives in YOUR browser's local 
-          storage. Your settings are on YOUR device. We never see any of it because it never leaves your computer 
-          (except for the direct API calls to OpenAI, which we never intercept).
+          Your API key is encrypted and stored in YOUR browser only. Your saved audio lives in YOUR browser's local 
+          storage. Your settings are on YOUR device. Text-to-speech requests go directly to OpenAI. When PDFs need 
+          text extraction, they're processed temporarily on our server and immediately discarded—we never store them 
+          in databases. No permanent data collection, no tracking.
         </p>
 
         <h2>The Open Source Guarantee</h2>
@@ -378,7 +379,7 @@ const blogPosts: Record<string, {
         <p>
           The best part? Tools like <Link href="/" className="text-indigo-600 dark:text-indigo-400 hover:underline">ReadItToMe</Link> make 
           it incredibly easy to get started. Simply paste your text or URL, choose a voice, and generate natural-sounding 
-          audio in seconds. No account required, 100% free, and your privacy is protected with client-side processing.
+          audio in seconds. No account required, 100% free, and your privacy is protected with minimal server processing and no permanent data storage.
         </p>
 
         <p>
@@ -422,7 +423,7 @@ const blogPosts: Record<string, {
           <li><strong>Any content, anywhere:</strong> Convert any webpage or text to audio instantly</li>
           <li><strong>Multiple voice options:</strong> Choose voices that match your preferences</li>
           <li><strong>No special software needed:</strong> Works in your browser</li>
-          <li><strong>Privacy-focused:</strong> Client-side processing keeps your data private</li>
+          <li><strong>Privacy-focused:</strong> Minimal server processing with no permanent data storage</li>
         </ul>
 
         <h2>Using ReadItToMe for Accessibility</h2>
@@ -683,8 +684,8 @@ const blogPosts: Record<string, {
     ),
   },
   'privacy-first-text-to-speech': {
-    title: 'Privacy-First Text-to-Speech: Why Client-Side Matters',
-    description: 'Understanding the importance of client-side processing for your privacy and security.',
+    title: 'Privacy-First Text-to-Speech: Why Minimal Server Processing Matters',
+    description: 'Understanding the importance of minimal server processing for your privacy and security.',
     date: '2025-01-08',
     readTime: '4 min read',
     category: 'Privacy',
@@ -692,40 +693,40 @@ const blogPosts: Record<string, {
       <article className="prose prose-lg dark:prose-invert max-w-none">
         <p className="lead">
           In an era where data privacy is increasingly important, how your text-to-speech tool handles your data matters. 
-          Let's explore why client-side processing is the gold standard for privacy.
+          Let's explore why minimal server processing and privacy-first architecture are crucial.
         </p>
 
         <h2>The Traditional Server-Based Approach</h2>
         <p>
-          Most online tools work like this: you submit your text, it's sent to their servers, processed, and sent back. 
-          This means the service provider has access to everything you submit—your articles, documents, notes, and even 
-          your API keys.
+          Most online tools work like this: you submit your text, it's sent to their servers, processed, stored in databases, 
+          and sent back. This means the service provider has permanent access to everything you submit—your articles, documents, 
+          notes, and even your API keys.
         </p>
 
-        <h3>Problems with Server-Based Processing:</h3>
+        <h3>Problems with Traditional Server Processing:</h3>
         <ul>
-          <li>Your data passes through third-party servers</li>
-          <li>The company can read, log, or store your content</li>
+          <li>Your data is permanently stored on third-party servers</li>
+          <li>The company can read, log, and store your content indefinitely</li>
           <li>Your API key is exposed to the service provider</li>
           <li>Data might be used for training or analytics</li>
-          <li>Potential for data breaches or unauthorized access</li>
+          <li>Risk of data breaches or unauthorized access</li>
           <li>You have to trust the company's privacy policy</li>
         </ul>
 
-        <h2>The Client-Side Alternative</h2>
+        <h2>The Privacy-First Alternative</h2>
         <p>
-          Client-side processing means everything happens in YOUR browser, on YOUR device. No intermediary servers, 
-          no third parties, no data collection. Your data goes directly from your browser to OpenAI's API, never 
-          touching any other servers.
+          Privacy-first processing means minimizing server involvement and never permanently storing data. Text-to-speech 
+          requests go directly from your browser to OpenAI. When server processing is necessary (like extracting text from 
+          PDFs), data is processed temporarily and immediately discarded—never stored in databases.
         </p>
 
-        <h3>Benefits of Client-Side Processing:</h3>
+        <h3>Benefits of Privacy-First Processing:</h3>
         <ul>
-          <li><strong>True privacy:</strong> No one except you and OpenAI sees your data</li>
+          <li><strong>Ephemeral processing:</strong> Data is processed temporarily and immediately discarded</li>
           <li><strong>Secure API key storage:</strong> Your key is encrypted and stored only in your browser</li>
-          <li><strong>No data logging:</strong> There's nothing to log because the tool never sees your data</li>
+          <li><strong>No permanent data storage:</strong> No databases storing your content</li>
           <li><strong>No account required:</strong> You don't need to share personal information</li>
-          <li><strong>Works offline (after setup):</strong> Your encryption keys stay on your device</li>
+          <li><strong>Transparent and auditable:</strong> Open-source code you can verify</li>
         </ul>
 
         <h2>How ReadItToMe Protects Your Privacy</h2>
@@ -737,18 +738,18 @@ const blogPosts: Record<string, {
           they couldn't read your encrypted key without your browser session.
         </p>
 
-        <h3>2. Direct API Calls</h3>
+        <h3>2. Direct Text-to-Speech API Calls</h3>
         <p>
-          When you generate speech, your request goes directly from your browser to OpenAI's servers. ReadItToMe's 
-          code facilitates this but never intercepts, logs, or stores your content. It's like making a direct phone 
-          call instead of going through an operator.
+          When you generate speech from text, your request goes directly from your browser to OpenAI's servers. ReadItToMe 
+          never intercepts, logs, or stores your content. It's like making a direct phone call instead of going through 
+          an operator.
         </p>
 
-        <h3>3. No Backend Servers</h3>
+        <h3>3. Minimal Server Processing</h3>
         <p>
-          ReadItToMe is a static website hosted on a CDN. There are no backend servers processing your requests or 
-          storing your data. The code runs entirely in your browser, which you can verify by checking the open-source 
-          code on GitHub.
+          ReadItToMe uses server-side processing only when necessary (PDF text extraction, URL content fetching). This 
+          processing is ephemeral—your data passes through temporarily and is immediately discarded. No databases, no 
+          logging, no permanent storage. You can verify this by checking the open-source code on GitHub.
         </p>
 
         <h3>4. Local Data Storage Only</h3>
@@ -823,7 +824,7 @@ const blogPosts: Record<string, {
         <div className="mt-8 p-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50 rounded-xl">
           <h3 className="text-xl font-bold mb-2">Experience True Privacy</h3>
           <p className="mb-4">
-            Try a text-to-speech tool that respects your privacy. 100% client-side, open source, and transparent.
+            Try a text-to-speech tool that respects your privacy. Privacy-first architecture, open source, and transparent.
           </p>
           <Link 
             href="/"

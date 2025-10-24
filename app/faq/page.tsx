@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     question: "Is my data private and secure?",
-    answer: "Absolutely. ReadItToMe is 100% client-side - your API key is encrypted with AES-256 and stored only in your browser's local storage. All requests go directly from your browser to OpenAI. We never see or store your data on any server."
+    answer: "Absolutely. Your API key is encrypted with AES-256 and stored only in your browser's local storage. Text-to-speech requests go directly from your browser to OpenAI. PDFs are temporarily processed on our server for text extraction (using pdf-parse) and immediately discarded - we don't store any files or data permanently."
   },
   {
     question: "What voices are available?",

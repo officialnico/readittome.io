@@ -58,8 +58,8 @@ const blogPosts = [
   },
   {
     slug: 'privacy-first-text-to-speech',
-    title: 'Privacy-First Text-to-Speech: Why Client-Side Matters',
-    description: 'Understanding the importance of client-side processing for your privacy and security.',
+    title: 'Privacy-First Text-to-Speech: Why Minimal Server Processing Matters',
+    description: 'Understanding the importance of minimal server processing for your privacy and security.',
     date: '2025-01-08',
     readTime: '4 min read',
     category: 'Privacy',

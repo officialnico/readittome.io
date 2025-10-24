@@ -5,7 +5,7 @@ import "./globals.css";
 const SITE_URL = "https://readittome.io";
 const SITE_NAME = "ReadItToMe";
 const SITE_TITLE = "ReadItToMe - Convert Text & URLs to Natural Speech with AI";
-const SITE_DESCRIPTION = "Transform any text or webpage into natural-sounding speech using OpenAI's advanced AI voices. Free, open-source, client-side text-to-speech tool with 6 premium voices. No account required.";
+const SITE_DESCRIPTION = "Transform any text or webpage into natural-sounding speech using OpenAI's advanced AI voices. Free, open-source, privacy-first text-to-speech tool with 6 premium voices. No account required.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     'voice generator',
     'audio converter',
     'free text to speech',
-    'client-side TTS',
+    'privacy-first TTS',
     'privacy-focused TTS',
   ],
   authors: [{ name: 'ReadItToMe Team' }],
@@ -119,7 +119,7 @@ export default function RootLayout({
                 '6 Premium AI Voices',
                 'Unlimited Text Length',
                 'URL to Speech Conversion',
-                'Client-Side Privacy',
+                'Privacy-First Architecture',
                 'No Account Required',
                 'Free & Open Source',
               ],

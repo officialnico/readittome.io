@@ -123,34 +123,35 @@ No more waiting for the entire article to generate before listening! 🚀
 
 ## Architecture
 
-This is a **fully client-side application**:
-- No backend or API routes
-- Direct fetch calls from browser to OpenAI API
-- Can be deployed as a static site
-- Works with any static hosting provider
+This is a **privacy-first Next.js application**:
+- Minimal server-side processing (PDF text extraction, URL content fetching)
+- Direct text-to-speech calls from browser to OpenAI API
+- No permanent data storage - all processing is ephemeral
+- Requires Next.js server for API routes (PDF processing, URL fetching)
 
 ## 🔒 Security & Privacy
 
-**Maximum security with 100% client-side architecture:**
+**Privacy-first architecture with minimal server processing:**
 
 - ✅ **AES-256 Encryption** - API key encrypted using Web Crypto API before storage
-- ✅ **No Backend** - Completely client-side, no servers to hack or compromise
-- ✅ **Direct Connection** - Browser connects directly to OpenAI, no middleman
+- ✅ **Direct TTS Connection** - Text-to-speech requests go directly to OpenAI, no middleman
+- ✅ **Minimal Server Use** - PDFs processed temporarily on server for text extraction only
+- ✅ **No Permanent Storage** - Files and data immediately discarded after processing
 - ✅ **Local Only** - Encrypted key stored only in your browser's localStorage
 - ✅ **No Tracking** - Zero data collection, analytics, or logging
 - ✅ **No Cookies** - Uses encrypted localStorage only
 - ✅ **Open Source** - Fully transparent, auditable code
 
-**Privacy-first architecture:**
+**Data Flow:**
 ```
-Your Browser (encrypted storage) → OpenAI API (direct)
-     ↑                                   ↑
-[Encrypted API Key]              [Decrypted only in memory]
-
-NO SERVERS IN BETWEEN!
+Text Input → Browser → OpenAI API (direct text-to-speech)
+PDF Upload → Server (temporary extraction) → Browser → OpenAI API
+URL Fetch → Server (content extraction) → Browser → OpenAI API
+     ↑
+[No permanent storage - immediately discarded]
 ```
 
-Your API key **never** touches any server except OpenAI's. You can verify this in your browser's DevTools Network tab.
+Your API key **never** touches any server except OpenAI's. PDFs are processed temporarily and immediately discarded.
 
 ## Building for Production
 
@@ -164,27 +165,20 @@ npm start
 
 ## Deployment
 
-Since this is a **static site**, you can deploy it for FREE to:
+This is a **Next.js application** with API routes, so it requires a Node.js server.
 
 ### Vercel (Recommended)
 1. Push to GitHub
 2. Import on [Vercel](https://vercel.com)
 3. Deploy! (No environment variables needed)
+4. Vercel will automatically detect Next.js and deploy with server-side API routes
 
-### Netlify
-```bash
-npm run build
-# Upload the 'out' folder to Netlify
-```
-
-### GitHub Pages
-```bash
-npm run build
-# Deploy the 'out' folder to gh-pages branch
-```
-
-### Any Static Host
-Just build and upload the static files - no server required!
+### Other Platforms
+You can deploy to any platform that supports Next.js:
+- **Netlify**: Supports Next.js with API routes
+- **Railway**: Full Next.js support
+- **Render**: Node.js hosting for Next.js apps
+- **Self-hosted**: Run `npm run build && npm start` on any Node.js server
 
 ## Development
 
