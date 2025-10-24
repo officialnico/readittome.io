@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo_dark.svg" alt="Read It To Me Logo" width="400">
+</p>
+
 # Read It To Me - Text to Speech Web App
 
 A modern web application that converts text to speech using OpenAI's advanced text-to-speech API. Features a ChatGPT-like dark interface with voice selection and audio playback.
