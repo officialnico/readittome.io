@@ -1,0 +1,24 @@
+{
+  "functions": {
+    "app/api/fetch-content/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "app/api/process-file/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
+

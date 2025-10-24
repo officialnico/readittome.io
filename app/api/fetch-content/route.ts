@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JSDOM } from 'jsdom';
+import * as cheerio from 'cheerio';
+
+// Configure API route for Vercel
+export const runtime = 'nodejs';
+export const maxDuration = 30; // Max 30 seconds for Pro plan, 10 for Hobby
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,29 +30,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch the webpage with timeout
+    // Fetch the webpage with timeout (8 seconds to stay under Vercel's 10s limit)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     
     let response;
     try {
+      // Use a real browser User-Agent to avoid being blocked
       response = await fetch(targetUrl.toString(), {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ReadItToMe/1.0)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
         },
         signal: controller.signal,
       });
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
+      console.error('[fetch-content] Fetch error:', fetchError);
+      
       if (fetchError.name === 'AbortError') {
         return NextResponse.json(
-          { error: 'Request timeout - the page took too long to load' },
+          { error: 'Request timeout - the page took too long to load. Try a different article or wait a moment and try again.' },
           { status: 504 }
         );
       }
       return NextResponse.json(
-        { error: `Failed to fetch URL: ${fetchError.message}` },
+        { error: `Failed to fetch URL: ${fetchError.message}. The site may be blocking automated requests.` },
         { status: 500 }
       );
     }
@@ -56,89 +68,115 @@ export async function POST(request: NextRequest) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      console.error('[fetch-content] HTTP error:', response.status, response.statusText);
+      
+      // Provide more helpful error messages based on status code
+      let errorMessage = '';
+      switch (response.status) {
+        case 403:
+          errorMessage = 'Access forbidden - the website is blocking automated requests. Try copying and pasting the text instead.';
+          break;
+        case 404:
+          errorMessage = 'Page not found - please check the URL and try again.';
+          break;
+        case 429:
+          errorMessage = 'Too many requests - please wait a moment and try again.';
+          break;
+        case 500:
+        case 502:
+        case 503:
+          errorMessage = 'The website is experiencing issues. Please try again later.';
+          break;
+        default:
+          errorMessage = `Failed to fetch URL: ${response.status} ${response.statusText}`;
+      }
+      
       return NextResponse.json(
-        { error: `Failed to fetch URL: ${response.status} ${response.statusText}` },
-        { status: 500 }
+        { error: errorMessage },
+        { status: response.status }
       );
     }
 
     const html = await response.text();
 
-    // Parse HTML and extract text content
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
+    // Parse HTML with Cheerio (lighter than JSDOM, better for serverless)
+    const $ = cheerio.load(html);
 
-    // Remove script, style, and other non-content elements
-    const elementsToRemove = document.querySelectorAll(
+    // Remove unwanted elements
+    $(
       'script, style, noscript, iframe, nav, footer, header, button, ' +
       '.ad, .advertisement, aside, [role="banner"], [role="navigation"], ' +
       '[role="complementary"], .sidebar, .menu, .comments, form, ' +
       '.social-share, .newsletter, .subscribe'
-    );
-    elementsToRemove.forEach((el: Element) => el.remove());
+    ).remove();
 
     // Try to find main content area
-    // Check for Medium-specific selectors first
-    let contentElement = 
-      document.querySelector('article') ||
-      document.querySelector('main') ||
-      document.querySelector('[role="main"]') ||
-      document.querySelector('.article-content') ||
-      document.querySelector('.post-content') ||
-      document.querySelector('.entry-content') ||
-      document.querySelector('.content') ||
-      document.querySelector('.post') ||
-      document.querySelector('.article') ||
-      document.body;
+    const contentSelectors = [
+      'article',
+      'main',
+      '[role="main"]',
+      '.article-content',
+      '.post-content',
+      '.entry-content',
+      '.content',
+      '.post',
+      '.article'
+    ];
 
-    // Helper function to extract text with proper spacing
-    const extractTextWithSpacing = (element: Element): string => {
+    let contentElement = null;
+    for (const selector of contentSelectors) {
+      const el = $(selector);
+      if (el.length > 0) {
+        contentElement = el.first();
+        break;
+      }
+    }
+
+    // Fallback to body if no content area found
+    if (!contentElement || contentElement.length === 0) {
+      contentElement = $('body');
+    }
+
+    // Extract text with proper spacing
+    let text = '';
+    
+    const extractText = (element: cheerio.Cheerio<any>) => {
       let result = '';
       
-      for (const node of Array.from(element.childNodes)) {
-        if (node.nodeType === 3) { // Text node
-          const text = node.textContent?.trim();
-          if (text) {
-            result += text + ' ';
+      element.contents().each((_, node) => {
+        if (node.type === 'text') {
+          const textContent = $(node).text().trim();
+          if (textContent) {
+            result += textContent + ' ';
           }
-        } else if (node.nodeType === 1) { // Element node
-          const el = node as Element;
-          const tagName = el.tagName.toLowerCase();
+        } else if (node.type === 'tag') {
+          const tagName = node.name;
           
           // Skip unwanted elements
           if (['script', 'style', 'nav', 'footer', 'header', 'button', 'iframe'].includes(tagName)) {
-            continue;
+            return;
           }
           
           // Block elements should have line breaks
           const blockElements = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'pre', 'section', 'article'];
           
-          // Inline elements that should have spacing
-          const inlineSpacingElements = ['span', 'a', 'strong', 'em', 'b', 'i', 'code'];
-          
           if (blockElements.includes(tagName)) {
-            const innerText = extractTextWithSpacing(el);
+            const innerText = extractText($(node));
             if (innerText.trim()) {
               result += '\n\n' + innerText.trim() + '\n\n';
             }
           } else if (tagName === 'br') {
             result += '\n';
-          } else if (inlineSpacingElements.includes(tagName)) {
-            const innerText = extractTextWithSpacing(el);
-            if (innerText.trim()) {
-              result += innerText.trim() + ' ';
-            }
           } else {
-            result += extractTextWithSpacing(el);
+            result += extractText($(node));
           }
         }
-      }
+      });
       
       return result;
     };
 
-    // Extract text content with proper spacing
-    let text = contentElement ? extractTextWithSpacing(contentElement) : '';
+    text = extractText(contentElement);
     
     // Clean up the text
     text = text
@@ -146,17 +184,17 @@ export async function POST(request: NextRequest) {
       .replace(/[ \t]+/g, ' ') // Normalize spaces
       .replace(/\n /g, '\n') // Remove spaces after newlines
       .replace(/ \n/g, '\n') // Remove spaces before newlines
-      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase words (e.g., "PerspectiveBy" -> "Perspective By")
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase words
       .replace(/(\d+)(min|hours?|days?|ago)/gi, '$1 $2') // Add space between numbers and time units
-      .replace(/\b(Listen|Share|Follow|Subscribe)\b/gi, '') // Remove common UI text
+      .replace(/\b(Listen|Share|Follow|Subscribe|Sign in|Sign up)\b/gi, '') // Remove common UI text
       .replace(/^(--+|\.\.\.|…)+$/gm, '') // Remove lines with just dashes or ellipsis
       .replace(/Press enter or click to view image in full size/gi, '') // Remove image captions
       .replace(/\n{3,}/g, '\n\n') // Clean up again after removals
       .trim();
 
     // Get title
-    const title = document.querySelector('title')?.textContent || 
-                  document.querySelector('h1')?.textContent || 
+    const title = $('title').first().text() || 
+                  $('h1').first().text() || 
                   '';
 
     if (!text || text.length < 50) {
