@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { track } from '@vercel/analytics';
 import { encryptAndStoreApiKey, retrieveAndDecryptApiKey, removeStoredApiKey, hasStoredApiKey } from '@/lib/crypto';
 import { extractUrlIfOnly } from '@/lib/url-utils';
 import { chunkText, concatenateAudioBlobs } from '@/lib/text-chunker';
@@ -102,6 +103,9 @@ export default function Home() {
       await encryptAndStoreApiKey(apiKey.trim());
       setIsAuthenticated(true);
       setShowApiKeyInput(false);
+      
+      // Track API key added
+      track('api_key_added');
     }
   };
 
@@ -132,10 +136,22 @@ export default function Home() {
       const data = await response.json();
       setText(data.text);
       setPageTitle(data.title);
+      
+      // Track successful URL fetch
+      track('url_content_fetched', {
+        text_length: data.text.length
+      });
+      
       return true;
     } catch (error) {
       console.error('Error fetching URL content:', error);
       alert(error instanceof Error ? error.message : 'Failed to fetch content from URL');
+      
+      // Track failed URL fetch
+      track('url_fetch_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
       return false;
     } finally {
       setIsFetchingContent(false);
@@ -202,6 +218,14 @@ export default function Home() {
         
         setAudioUrl(url);
         setAudioBlob(blob);
+        
+        // Track successful audio generation
+        track('audio_generated', {
+          voice: selectedVoice,
+          text_length: text.trim().length,
+          input_type: sourceUrl ? 'url' : 'text',
+          chunks: 1
+        });
         
         // Auto-save to collections
         await saveToCollection(blob);
@@ -321,6 +345,14 @@ export default function Home() {
           const concatenatedBlob = await concatenateAudioBlobs(audioBlobs);
           const finalUrl = URL.createObjectURL(concatenatedBlob);
           
+          // Track successful multi-chunk audio generation
+          track('audio_generated', {
+            voice: selectedVoice,
+            text_length: text.trim().length,
+            input_type: sourceUrl ? 'url' : 'text',
+            chunks: chunks.length
+          });
+          
           // Save concatenated audio to collections
           setAudioBlob(concatenatedBlob);
           await saveToCollection(concatenatedBlob);
@@ -357,6 +389,14 @@ export default function Home() {
     } catch (error) {
       console.error('Error generating speech:', error);
       alert(error instanceof Error ? error.message : 'Failed to generate speech. Please check your API key and try again.');
+      
+      // Track generation failure
+      track('audio_generation_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        voice: selectedVoice,
+        text_length: text.trim().length,
+        input_type: sourceUrl ? 'url' : 'text'
+      });
     } finally {
       setIsGenerating(false);
       setGenerationProgress({ current: 0, total: 0 });
@@ -409,7 +449,10 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {collectionsCount > 0 && (
               <button
-                onClick={() => router.push('/collections')}
+                onClick={() => {
+                  track('collections_viewed', { count: collectionsCount });
+                  router.push('/collections');
+                }}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -551,7 +594,11 @@ export default function Home() {
                 <label className="text-sm text-gray-600 dark:text-gray-400">Voice</label>
                 <select
                   value={selectedVoice}
-                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  onChange={(e) => {
+                    const newVoice = e.target.value;
+                    setSelectedVoice(newVoice);
+                    track('voice_selected', { voice: newVoice });
+                  }}
                   className="px-4 py-2 bg-white dark:bg-[#3a3a3a] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 text-gray-900 dark:text-gray-100 cursor-pointer"
                 >
                   {OPENAI_VOICES.map((voice) => (
@@ -619,6 +666,13 @@ export default function Home() {
                     <a
                       href={audioUrl}
                       download="speech.mp3"
+                      onClick={() => {
+                        track('audio_downloaded', {
+                          voice: selectedVoice,
+                          text_length: text.trim().length,
+                          input_type: sourceUrl ? 'url' : 'text'
+                        });
+                      }}
                       className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                     >
                       Download
