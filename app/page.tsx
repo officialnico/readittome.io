@@ -82,6 +82,7 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioQueueRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
+  const textInputTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check for saved API key on mount
   useEffect(() => {
@@ -322,9 +323,14 @@ export default function Home() {
       const fileName = file.name.toLowerCase();
       if (fileName.endsWith('.pdf') || fileName.endsWith('.txt') || file.type === 'text/plain') {
         setErrorMessage(null); // Clear any previous errors
+        track('file_dropped', { 
+          file_type: file.type,
+          file_size: file.size
+        });
         await processFile(file);
       } else {
         setErrorMessage('Please drop a PDF or text file');
+        track('invalid_file_dropped', { file_type: file.type });
       }
     }
   };
@@ -659,7 +665,10 @@ export default function Home() {
             )}
             {!isAuthenticated ? (
               <button
-                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                onClick={() => {
+                  track('connect_openai_clicked');
+                  setShowApiKeyInput(!showApiKeyInput);
+                }}
                 className="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors text-sm font-medium"
               >
                 Connect OpenAI
@@ -673,7 +682,10 @@ export default function Home() {
                   </div>
                 )}
                 <button
-                  onClick={handleLogout}
+                  onClick={() => {
+                    track('disconnect_clicked');
+                    handleLogout();
+                  }}
                   className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm"
                 >
                   Disconnect
@@ -695,6 +707,7 @@ export default function Home() {
                   href="https://platform.openai.com/account/api-keys"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => track('get_api_key_link_clicked')}
                   className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                 >
                   Get API Key
@@ -708,12 +721,16 @@ export default function Home() {
                   type="text"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
+                  onFocus={() => track('api_key_input_focused')}
                   placeholder="sk-..."
                   className="flex-1 px-4 py-2 bg-white dark:bg-[#3a3a3a] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 text-gray-900 dark:text-gray-100"
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
                 />
                 <button
-                  onClick={handleSaveApiKey}
+                  onClick={() => {
+                    track('save_api_key_clicked');
+                    handleSaveApiKey();
+                  }}
                   className="px-6 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium"
                 >
                   Save
@@ -853,13 +870,43 @@ export default function Home() {
                 />
                 <textarea
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={(e) => {
+                    const newText = e.target.value;
+                    setText(newText);
+                    
+                    // Debounced tracking - only track after user stops typing for 1 second
+                    if (textInputTimerRef.current) {
+                      clearTimeout(textInputTimerRef.current);
+                    }
+                    
+                    textInputTimerRef.current = setTimeout(() => {
+                      if (newText.length > 0) {
+                        track('text_input_changed', { 
+                          character_count: newText.length,
+                          has_url: newText.includes('http'),
+                          word_count: newText.trim().split(/\s+/).length
+                        });
+                      }
+                    }, 1000);
+                  }}
+                  onFocus={() => track('text_input_focused')}
+                  onPaste={(e) => {
+                    const pastedText = e.clipboardData.getData('text');
+                    track('text_pasted', { 
+                      character_count: pastedText.length,
+                      has_url: pastedText.includes('http'),
+                      word_count: pastedText.trim().split(/\s+/).length
+                    });
+                  }}
                   placeholder="Paste a URL or text here, or drag & drop a PDF or text file anywhere on the page..."
                   className="w-full h-64 px-4 py-3 bg-white dark:bg-[#3a3a3a] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 />
                 <div className="absolute bottom-3 right-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      track('upload_file_button_clicked');
+                      fileInputRef.current?.click();
+                    }}
                     className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                     type="button"
                   >
@@ -988,18 +1035,21 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <a 
                 href="/blog"
+                onClick={() => track('footer_blog_clicked')}
                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 Blog
               </a>
               <a 
                 href="/use-cases"
+                onClick={() => track('footer_use_cases_clicked')}
                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 Use Cases
               </a>
               <a 
                 href="/faq"
+                onClick={() => track('footer_faq_clicked')}
                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 FAQ
@@ -1008,6 +1058,7 @@ export default function Home() {
                 href="https://github.com/officialnico/readittome.io"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => track('footer_github_clicked')}
                 className="flex items-center gap-1 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
