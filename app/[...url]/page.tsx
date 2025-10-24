@@ -82,11 +82,24 @@ export default function UrlPage() {
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to fetch content');
+          let errorMessage = 'Failed to fetch content';
+          try {
+            const error = await response.json();
+            errorMessage = error.error || errorMessage;
+          } catch (jsonError) {
+            // If we can't parse JSON, use status text
+            errorMessage = `Failed to fetch content: ${response.status} ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          throw new Error('Received invalid response from server. Please try again.');
+        }
+        
         setText(data.text);
         setPageTitle(data.title);
         

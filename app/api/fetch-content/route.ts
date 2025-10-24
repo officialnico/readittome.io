@@ -12,23 +12,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[fetch-content] Fetching URL:', url);
+
     // Validate URL
     let targetUrl: URL;
     try {
       targetUrl = new URL(url);
     } catch {
+      console.error('[fetch-content] Invalid URL:', url);
       return NextResponse.json(
         { error: 'Invalid URL' },
         { status: 400 }
       );
     }
 
-    // Fetch the webpage
-    const response = await fetch(targetUrl.toString(), {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ReadItToMe/1.0)',
-      },
-    });
+    // Fetch the webpage with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    let response;
+    try {
+      response = await fetch(targetUrl.toString(), {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; ReadItToMe/1.0)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: controller.signal,
+      });
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        return NextResponse.json(
+          { error: 'Request timeout - the page took too long to load' },
+          { status: 504 }
+        );
+      }
+      return NextResponse.json(
+        { error: `Failed to fetch URL: ${fetchError.message}` },
+        { status: 500 }
+      );
+    }
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return NextResponse.json(
@@ -53,10 +78,14 @@ export async function POST(request: NextRequest) {
     elementsToRemove.forEach((el: Element) => el.remove());
 
     // Try to find main content area
+    // Check for Medium-specific selectors first
     let contentElement = 
       document.querySelector('article') ||
       document.querySelector('main') ||
       document.querySelector('[role="main"]') ||
+      document.querySelector('.article-content') ||
+      document.querySelector('.post-content') ||
+      document.querySelector('.entry-content') ||
       document.querySelector('.content') ||
       document.querySelector('.post') ||
       document.querySelector('.article') ||
@@ -131,12 +160,15 @@ export async function POST(request: NextRequest) {
                   '';
 
     if (!text || text.length < 50) {
+      console.error('[fetch-content] Extracted text too short:', text.length);
       return NextResponse.json(
         { error: 'Could not extract meaningful content from the page' },
         { status: 500 }
       );
     }
 
+    console.log('[fetch-content] Successfully extracted content:', text.length, 'characters');
+    
     return NextResponse.json({
       text,
       title: title.trim(),
@@ -144,7 +176,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error fetching content:', error);
+    console.error('[fetch-content] Error:', error);
     return NextResponse.json(
       { error: error?.message || 'Failed to fetch content' },
       { status: 500 }
