@@ -98,6 +98,9 @@ export default function Home() {
     }
     loadApiKey();
     updateCollectionsCount();
+    
+    // Track home page view
+    track('home_page_viewed');
   }, []);
 
   const updateCollectionsCount = () => {
