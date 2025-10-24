@@ -1,0 +1,96 @@
+import type { Metadata } from 'next';
+
+const faqs = [
+  {
+    question: "Is ReadItToMe free to use?",
+    answer: "Yes! ReadItToMe is 100% free and open source. You only need your own OpenAI API key, which you can get from OpenAI. You pay OpenAI directly for usage at their standard rates (typically $0.015 per 1,000 characters)."
+  },
+  {
+    question: "Do I need to create an account?",
+    answer: "No account required! Simply enter your OpenAI API key and start converting text to speech immediately. Your API key is encrypted and stored only in your browser."
+  },
+  {
+    question: "Is my data private and secure?",
+    answer: "Absolutely. ReadItToMe is 100% client-side - your API key is encrypted with AES-256 and stored only in your browser's local storage. All requests go directly from your browser to OpenAI. We never see or store your data on any server."
+  },
+  {
+    question: "What voices are available?",
+    answer: "We offer 6 premium OpenAI voices: Alloy (neutral), Echo (clear), Fable (expressive), Onyx (deep), Nova (friendly), and Shimmer (bright). All voices are natural-sounding and high-quality."
+  },
+  {
+    question: "Can I convert entire webpages to audio?",
+    answer: "Yes! You can paste any URL and ReadItToMe will automatically extract the main content and convert it to speech. You can also use our URL shortcut: just add 'readittome.io/' before any URL to instantly load it."
+  },
+  {
+    question: "Is there a limit on text length?",
+    answer: "No hard limit! ReadItToMe automatically chunks long texts and generates them seamlessly. You can convert entire articles, books, or documents of any size."
+  },
+  {
+    question: "Can I download the generated audio?",
+    answer: "Yes, every generated audio file can be downloaded as an MP3. Your audio is also automatically saved to your Collections for easy access later."
+  },
+  {
+    question: "Does it work offline?",
+    answer: "The app itself can work offline as a PWA, but generating new audio requires an internet connection since it needs to call OpenAI's API."
+  },
+  {
+    question: "Which browsers are supported?",
+    answer: "ReadItToMe works on all modern browsers including Chrome, Firefox, Safari, and Edge. For the best experience, we recommend using the latest version of your browser."
+  },
+  {
+    question: "How do I get an OpenAI API key?",
+    answer: "Visit platform.openai.com/api-keys, sign up or log in, and create a new API key. Copy it and paste it into ReadItToMe. Your key is encrypted and stored only in your browser."
+  },
+  {
+    question: "Can I use this for commercial purposes?",
+    answer: "Yes! ReadItToMe is open source under the MIT license. However, check OpenAI's terms of service for any restrictions on commercial use of their TTS API."
+  },
+  {
+    question: "How accurate is the pronunciation?",
+    answer: "OpenAI's TTS models are state-of-the-art and handle pronunciation, intonation, and natural speech patterns extremely well. They work with multiple languages and handle technical terms accurately."
+  }
+];
+
+export const metadata: Metadata = {
+  title: 'FAQ - Common Questions About AI Text to Speech',
+  description: 'Answers to frequently asked questions about ReadItToMe - free, privacy-focused text-to-speech converter. Learn about features, pricing, privacy, and more.',
+  openGraph: {
+    title: 'FAQ - ReadItToMe',
+    description: 'Frequently asked questions about AI text-to-speech conversion',
+    url: 'https://readittome.io/faq',
+  },
+  alternates: {
+    canonical: 'https://readittome.io/faq',
+  },
+};
+
+export default function FAQLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Add FAQ Schema
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(faq => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.answer,
+      },
+    })),
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      {children}
+    </>
+  );
+}
+

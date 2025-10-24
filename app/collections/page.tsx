@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+
+// Metadata is exported in a separate file for client components
+export const dynamic = 'force-dynamic';
 import {
   getAudioCollections,
   deleteAudioCollection,
@@ -18,14 +21,14 @@ const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   <>
     <Image 
       src="/light_mode_no_text.svg" 
-      alt="readittome.io" 
+      alt="ReadItToMe icon - Text to speech converter" 
       width={24} 
       height={24} 
       className={`${className} dark:hidden`}
     />
     <Image 
       src="/dark_mode_no_text.svg" 
-      alt="readittome.io" 
+      alt="ReadItToMe icon - Text to speech converter" 
       width={24} 
       height={24} 
       className={`${className} hidden dark:block`}
@@ -337,6 +340,28 @@ export default function CollectionsPage() {
           )}
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 dark:border-gray-700 py-6 mt-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-600 dark:text-gray-400">
+            <p>© 2025 ReadItToMe • Open Source • Privacy-First</p>
+            <div className="flex items-center gap-6">
+              <a href="/blog" className="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">Blog</a>
+              <a href="/use-cases" className="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">Use Cases</a>
+              <a href="/faq" className="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">FAQ</a>
+              <a 
+                href="https://github.com/officialnico/readittome.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

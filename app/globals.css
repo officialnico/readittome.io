@@ -82,3 +82,81 @@ body {
   animation: slide-in-right 0.3s ease-out;
 }
 
+/* Blog Article Typography */
+article.prose {
+  line-height: 1.8;
+}
+
+article.prose h2 {
+  scroll-margin-top: 5rem;
+}
+
+article.prose h3 {
+  scroll-margin-top: 5rem;
+}
+
+article.prose h4 {
+  scroll-margin-top: 5rem;
+}
+
+article.prose ul {
+  padding-left: 1.5em;
+}
+
+article.prose ul li {
+  padding-left: 0.5em;
+  margin-bottom: 0.75em;
+}
+
+article.prose ul li::marker {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  article.prose ul li::marker {
+    color: #818cf8;
+  }
+}
+
+article.prose p + p {
+  margin-top: 1.5em;
+}
+
+article.prose p + h2,
+article.prose ul + h2,
+article.prose ol + h2 {
+  margin-top: 3rem;
+}
+
+article.prose p + h3,
+article.prose ul + h3,
+article.prose ol + h3 {
+  margin-top: 2rem;
+}
+
+article.prose code {
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: #f3f4f6;
+  font-size: 0.9em;
+}
+
+@media (prefers-color-scheme: dark) {
+  article.prose code {
+    background: #374151;
+  }
+}
+
+/* Better list spacing in blog posts */
+article.prose li > p {
+  margin-bottom: 0.5em;
+  margin-top: 0.5em;
+}
+
+article.prose li > ul,
+article.prose li > ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
