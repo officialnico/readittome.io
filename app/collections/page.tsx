@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { track } from '@vercel/analytics';
 
 // Metadata is exported in a separate file for client components
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,10 @@ export default function CollectionsPage() {
 
   useEffect(() => {
     loadCollections();
+    // Track page view
+    track('collections_page_viewed', {
+      collections_count: getAudioCollections().length
+    });
   }, []);
 
   const loadCollections = () => {
@@ -85,6 +90,12 @@ export default function CollectionsPage() {
 
     audio.play();
     setPlayingId(collection.id);
+    
+    // Track audio playback from collection
+    track('collection_audio_played', {
+      voice: collection.voice,
+      has_source_url: !!collection.sourceUrl
+    });
   };
 
   const handlePause = (id: string) => {
@@ -110,10 +121,15 @@ export default function CollectionsPage() {
       if (playingId === id) {
         setPlayingId(null);
       }
+      
+      // Track deletion
+      track('collection_audio_deleted');
     }
   };
 
   const handleClearAll = () => {
+    const count = collections.length;
+    
     // Stop all audio
     audioElements.forEach(audio => {
       audio.pause();
@@ -125,6 +141,11 @@ export default function CollectionsPage() {
     setPlayingId(null);
     setAudioElements(new Map());
     setShowClearConfirm(false);
+    
+    // Track clear all
+    track('collections_cleared', {
+      count: count
+    });
   };
 
   const handleDownload = (collection: AudioCollection) => {
@@ -135,6 +156,12 @@ export default function CollectionsPage() {
     a.download = `${collection.title || 'audio'}.mp3`;
     a.click();
     URL.revokeObjectURL(url);
+    
+    // Track download from collection
+    track('collection_audio_downloaded', {
+      voice: collection.voice,
+      has_source_url: !!collection.sourceUrl
+    });
   };
 
   const formatDate = (timestamp: number) => {

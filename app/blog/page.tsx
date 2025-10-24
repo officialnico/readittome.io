@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { track } from '@vercel/analytics';
 
 const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   <>
@@ -77,6 +79,11 @@ const blogPosts = [
 export default function BlogPage() {
   const router = useRouter();
 
+  useEffect(() => {
+    // Track page view
+    track('blog_page_viewed');
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#212121] text-gray-900 dark:text-gray-100">
       {/* Header */}
@@ -132,6 +139,7 @@ export default function BlogPage() {
               <Link
                 key={post.slug}
                 href={`/blog/${post.slug}`}
+                onClick={() => track('blog_post_clicked', { slug: post.slug, category: post.category })}
                 className="group bg-white dark:bg-[#2f2f2f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 hover:border-gray-300 dark:hover:border-gray-600 transition-all hover:shadow-lg"
               >
                 <div className="mb-3">
@@ -172,7 +180,10 @@ export default function BlogPage() {
               Convert any text or webpage to natural-sounding speech in seconds
             </p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => {
+                track('blog_cta_clicked');
+                router.push('/');
+              }}
               className="px-8 py-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium text-lg"
             >
               Get Started Free

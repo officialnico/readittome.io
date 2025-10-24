@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { track } from '@vercel/analytics';
 
 const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   <>
@@ -76,6 +78,11 @@ const faqs = [
 export default function FAQPage() {
   const router = useRouter();
 
+  useEffect(() => {
+    // Track page view
+    track('faq_page_viewed');
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#212121] text-gray-900 dark:text-gray-100">
       {/* Header */}
@@ -137,7 +144,10 @@ export default function FAQPage() {
               Try ReadItToMe for free - no account required!
             </p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => {
+                track('faq_cta_clicked');
+                router.push('/');
+              }}
               className="px-8 py-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors font-medium text-lg"
             >
               Get Started Free
